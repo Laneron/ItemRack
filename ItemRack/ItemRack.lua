@@ -31,6 +31,10 @@ function ItemRack.IsCata()
 	return wowtoc > 40000 and wowtoc < 50000
 end
 
+function ItemRack.IsSod()
+	return wowtoc >= 11500 and wowtoc < 20000
+end
+
 -- [[ Season of Discovery Runes ]]
 function ItemRack.IsEngravingActive()
 	return C_Engraving and C_Engraving.IsEngravingEnabled()
@@ -261,7 +265,8 @@ function ItemRack.InitEventHandlers()
 	handler.PLAYER_TALENT_UPDATE = ItemRack.UpdateClassSpecificStuff
 	handler.PLAYER_ENTERING_WORLD = ItemRack.OnEnterWorld
 	handler.PLAYER_LOGOUT = ItemRack.OnPlayerLogout
-	handler.ACTIVE_TALENT_GROUP_CHANGED = ItemRack.UpdateClassSpecificStuff
+	handler.ACTIVE_TALENT_GROUP_CHANGED = { ItemRack.UpdateClassSpecificStuff, ItemRack.OnActiveTalentGroupChanged }
+	--handler.ACTIVE_TALENT_GROUP_CHANGED = ItemRack.OnActiveTalentGroupChanged
 --	handler.PET_BATTLE_OPENING_START = ItemRack.OnEnteringPetBattle
 --	handler.PET_BATTLE_CLOSE = ItemRack.OnLeavingPetBattle
 end
@@ -278,7 +283,14 @@ do
 end
 
 function ItemRack.OnEvent(self,event,...)
-	ItemRack.EventHandlers[event](self,event,...)
+	local handlers = ItemRack.EventHandlers[event];
+	if #(handlers) > 0 then
+		for _, handler in pairs(handlers) do
+			handler(self,event,...)
+		end
+	else
+		handlers[event](self,event,...)
+	end
 end
 
 --- Allows third-party addons to listen to ItemRack events, like saving and deleting a set.
@@ -357,6 +369,10 @@ function ItemRack.OnCastingStop(self,event,unit)
 			]]
 		end
 	end
+end
+
+function ItemRack.OnActiveTalentGroupChanged()
+	ItemRack.StartTimer("ActiveTalentGroupChanged")
 end
 
 function ItemRack.OnItemLockChanged()
@@ -562,6 +578,7 @@ function ItemRack.InitCore()
 	ItemRack.CreateTimer("TooltipUpdate",ItemRack.TooltipUpdate,1,1)
 	ItemRack.CreateTimer("CooldownUpdate",ItemRack.CooldownUpdate,1,1)
 	ItemRack.CreateTimer("LocksChanged",ItemRack.LocksChanged,.2)
+	ItemRack.CreateTimer("ActiveTalentGroupChanged", ItemRack.ActiveTalentGroupChanged, 1)
 	ItemRack.CreateTimer("DelayedCombatQueue",ItemRack.DelayedCombatQueue,.1)
 
 	for i=-2,11 do
@@ -585,6 +602,10 @@ function ItemRack.InitCore()
 	ItemRackFrame:RegisterEvent("CHARACTER_POINTS_CHANGED")
 	if ItemRack.IsWrath() then
 		ItemRackFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
+		ItemRackFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+	end
+
+	if ItemRack.IsSod() then 
 		ItemRackFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 	end
 	-- ItemRackFrame:RegisterEvent("PET_BATTLE_OPENING_START")
@@ -943,6 +964,13 @@ function ItemRack.IsSoulbound(bag,slot)
 		if text==ITEM_SOULBOUND or text==ITEM_BIND_QUEST or text==ITEM_CONJURED then
 			return 1
 		end
+	end
+end
+
+function ItemRack.ActiveTalentGroupChanged()
+	print("ActiveTalentGroupChanged")
+	if #(ItemRack.SetsWaiting)>0 and not ItemRack.AnythingLocked() then
+		ItemRack.ProcessSetsWaiting()
 	end
 end
 
